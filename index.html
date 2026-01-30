@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Sequence (SVG)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .media-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+            object-position: center center;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+            will-change: opacity;
+            z-index: 0;
+            display: block;
+        }
+
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Initial state */
+        #video1 { opacity: 1; z-index: 10; }
+        
+        /* Hit area for interaction on Frame 2 */
+        #envelope-hitbox {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            cursor: pointer;
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="container">
+        <!-- Stack order managed by z-index in JS -->
+        <video src="https://resources-cn-jx.aic.cloud:54443/api/v1/buckets/res/objects/download?preview=true&prefix=115%2Fvideo%2Fvideo1.mp4&version_id=null" id="video1" class="media-item" playsinline muted preload="auto"></video>
+        <video src="https://resources-cn-jx.aic.cloud:54443/api/v1/buckets/res/objects/download?preview=true&prefix=115%2Fvideo%2Fvideo2.mp4&version_id=null" id="video2" class="media-item" playsinline muted preload="auto"></video>
+
+
+        <div id="envelope-hitbox"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video1 = document.getElementById('video1');
+            const video2 = document.getElementById('video2');
+            const envelopeHitbox = document.getElementById('envelope-hitbox');
+
+            let currentState = 'START';
+
+            // Click to start Video 1
+            document.body.addEventListener('click', () => {
+                if (currentState === 'START') {
+                    // Play Video 1 logic
+                    playVideo(video1, null, 20, () => {
+                        currentState = 'PLAYING_V1';
+                    });
+                }
+            });
+
+            // Video 1 Ends -> Show Frame 2
+            video1.addEventListener('ended', () => {
+                if (currentState === 'PLAYING_V1') {
+                    // Pause on last frame
+                    video1.pause();
+                    
+                    currentState = 'FRAME2';
+                    envelopeHitbox.style.display = 'block';
+                }
+            });
+
+            // Click Envelope -> Start Video 2
+            envelopeHitbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentState === 'FRAME2') {
+                    envelopeHitbox.style.display = 'none';
+                    // Video 2 plays ON TOP of Frame 2
+                    video2.style.zIndex = 40;
+                    playVideo(video2, video1, 40, () => {
+                        currentState = 'PLAYING_V2';
+                    });
+                }
+            });
+
+            // Video 2 Ends -> Stop
+            video2.addEventListener('ended', () => {
+                if (currentState === 'PLAYING_V2') {
+                    // Just stop/pause video2, do not fade out.
+                    video2.pause();
+                    currentState = 'END';
+                }
+            });
+
+            function playVideo(videoEl, previousEl, zIndex, callback) {
+                videoEl.style.zIndex = zIndex;
+                videoEl.style.opacity = 1;
+
+                videoEl.muted = false;
+                
+                const playPromise = videoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        videoEl.muted = true;
+                        videoEl.play();
+                    });
+                }
+                
+                // Just ensuring opacity transition happens if class wasn't enough (it is inline style here)
+                // Wait for play to ensure smoothness? 
+                // We just rely on CSS transition of opacity 0->1
+                
+                 setTimeout(() => {
+                    previousEl.style.opacity = 0;
+                }, 1000); 
+
+                if (callback) callback();
+            }
+        });
+    </script>
+</body>
+</html>
